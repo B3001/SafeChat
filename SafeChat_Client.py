@@ -1,12 +1,22 @@
 import socket
 import threading
 
+#nur eine connection wird benötigt wenn man mit einem thread jeweils nur empfangt und der andere sendet
+
 # Funktion für den Empfänger-Thread, um die Nachrichten im richtigen Format zu bekommen.
 def receive_data(sock):
     while True:
-        source_client = sock.recv(1024).decode()
-        data = sock.recv(1024).decode()
-        print(f"\n Nachricht von {source_client}: {data}")
+        try:
+            received_data = sock.recv(1024).decode()
+            if received_data:
+                destination, message = data.split("$", 1)
+                print(f"\n Nachricht von {destination}: {message}")
+            else:
+                break
+        except:
+            print("Fehler beim Empfangen:")
+            break
+
 
 # Socket erstellen
 udp_s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -25,16 +35,24 @@ try:
         # Hier wird die TCP-Verbindung aufgebaut
         tcp_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_s.connect((server[0], 3001))
+        
     
-        receive_thread = threading.Thread(target=receive_data, args=(tcp_s,), daemon=True)
+        receive_thread = threading.Thread(target=receive_data, args=(tcp_s, ), daemon=True)
         receive_thread.start()
     
         while True:
-            destination_client = input()
+            while True:
+                destination_client = input("Empfänger eingeben (z.B. 127.0.0.1) oder exit zum beenden: ")
+                if "$" in destination_client:
+                    print("Es darf kein $ in der Adresse sein!")
+                else:
+                    break
             if destination_client == "exit":
-                break  
-            data = input()
-            tcp_s.sendall(destination_client.encode())
+                break
+            
+            message = input("Nachricht eingeben: ")
+            
+            data = destination_client + "$" + message
             tcp_s.sendall(data.encode())
         
     tcp_s.close()
