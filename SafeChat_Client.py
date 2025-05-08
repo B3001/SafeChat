@@ -9,12 +9,12 @@ def receive_data(sock):
         try:
             received_data = sock.recv(1024).decode()
             if received_data:
-                destination, message = data.split("$", 1)
+                destination, message = received_data.split("$", 1)
                 print(f"\n Nachricht von {destination}: {message}")
             else:
                 break
-        except:
-            print("Fehler beim Empfangen:")
+        except Exception as e:
+            print("Fehler beim Empfangen:", e)
             break
 
 
