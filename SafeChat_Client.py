@@ -1,16 +1,36 @@
 import socket
 import threading
+import SafeChat_Verschlüsselung as crypt
 
 #nur eine connection wird benötigt wenn man mit einem thread jeweils nur empfangt und der andere sendet
 
+# Funktion erstellen für key_exchange und Variable mit IP und jeweiligen Schlüssel (Funktion wird immer aufgerufen, wenn man mit einem anderen Client schreibt).
+# Verschlüsselung muss noch ausgebaut werden, sodass man nicht gleichzeitig absenden muss.
+
 # Funktion für den Empfänger-Thread, um die Nachrichten im richtigen Format zu bekommen.
-def receive_data(sock):
+def receive_data(sock): # Mit return fixen
     while True:
         try:
             received_data = sock.recv(1024).decode()
             if received_data:
                 destination, message = received_data.split("$", 1)
+                return message
                 print(f"\n Nachricht von {destination}: {message}")
+            else:
+                break
+        except Exception as e:
+            print("Fehler beim Empfangen:", e)
+            break
+        
+def receive_encrypted_data(sock, key): # Entschlüsselung noch
+    while True:
+        try:
+            received_data = sock.recv(1024).decode()
+            if received_data:
+                destination, message = received_data.split("$", 1)
+                print(f"Message: {message}")
+                decrypto = crypt.Str_encrypt(message, key)
+                print(f"\n Nachricht von {destination}: {decrypto}")
             else:
                 break
         except Exception as e:
@@ -37,12 +57,25 @@ try:
         tcp_s.connect((server[0], 3001))
         
         #Hier DH
+        private_key = crypt.DH_generate_private_key()
+        print(f"private_key: {private_key}")
+        per1change = crypt.DH_calculate_change(private_key)
+        print(f"per1change: {per1change}")
+        per1change = str(per1change)
+        IP = input("IP-Adresse eingeben: ")
+        per_data = IP + "$" + per1change
+        tcp_s.sendall(per_data.encode())
+        per2change = receive_data(tcp_s)
+        print(f"per2change: {per2change}")
+        per2change = int(per2change)
+        final_key = crypt.DH_calculate_change(private_key, per2change)
+        print(f"Final key: {final_key}")
     
-        receive_thread = threading.Thread(target=receive_data, args=(tcp_s, ), daemon=True)
+        receive_thread = threading.Thread(target=receive_encrypted_data, args=(tcp_s, final_key), daemon=True)
         receive_thread.start()
         
     
-        while True:
+        while True: # Verschlüsseln der Nachricht (passt jz hoffentlich)
             while True:
                 destination_client = input("Empfänger eingeben (z.B. 127.0.0.1) oder exit zum beenden: ")
                 if "$" in destination_client:
@@ -54,7 +87,9 @@ try:
             
             message = input("Nachricht eingeben: ")
             
-            data = destination_client + "$" + message
+            crypto = crypt.Str_encrypt(message, final_key)
+            
+            data = destination_client + "$" + crypto
             tcp_s.sendall(data.encode())
         
     tcp_s.close()
