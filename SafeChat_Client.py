@@ -36,9 +36,11 @@ try:
         tcp_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_s.connect((server[0], 3001))
         
+        #Hier DH
     
         receive_thread = threading.Thread(target=receive_data, args=(tcp_s, ), daemon=True)
         receive_thread.start()
+        
     
         while True:
             while True:
