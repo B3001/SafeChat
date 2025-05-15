@@ -62,12 +62,12 @@ def client_send(conn, addr): # überprüfen ob Nachricht für addr vorhanden ist
                         #lock
                         tupel_lock.acquire()
                         
-                        destination = str(messages[addr][0][0][0])
+                        source = str(messages[addr][0][0][0]) #source??????????????
                         #print(destination)
                         message = str(messages[addr][0][1])
                         #print(message)
                         
-                        data = destination + "$" + message #destination + "$" + message
+                        data = source + "$" + message #destination + "$" + message
                         conn.sendall(data.encode())
                         messages[addr].pop(0) #aus messages löschen
                         print("Nachricht weitergeleitet")
