@@ -20,6 +20,15 @@ def IP_Handler():
 def client_receive(conn, addr):
     print("Neue Client-Verbindung")
     with conn: # conn wird automatisch geschlossen wenn Verbindung getrennt
+        #------------------------------------------------------------------------------------------------------------
+        # veränderten Public Key empfangen
+        try:
+            message = conn.recv(1024).decode()
+            DH_Data[addr[0]] = message
+        except:
+            print("Fehler beim empfangen von DH-Daten")
+        print("DH_Data: ", end = "")
+        print(DH_Data)
         while True:
             try:
                 #später in client_connections Benutzer dieser Verbindung hinzufügen
@@ -27,21 +36,38 @@ def client_receive(conn, addr):
                 print("Nachricht bekommen")
                 
                 #Nachricht in messages schreiben
-                destination, message = data.split("$", 1) #split destination$message
+                destination, message = data.split("$", 1) #split destination$message oder Server$DH
                 
                 #messages locken
                 while True:
                     try:
                         tupel_lock.acquire()
-                        if destination not in messages:
+                        if destination not in messages: # und nicht "Get_DH_Data"
                             messages[destination] = []
-                        messages[destination].append((addr, message))
+                        if addr[0] not in messages:
+                            messages[addr[0]] = []
+                        print("DH_Data: ", end="")
+                        print(DH_Data)
+                        if "Get_DH_Data" in message:#nicht == sondern in
+                            destination = message.split("$")[1]
+                            if addr[0] in DH_Data: # DH-Daten an beide Clients senden
+                                print("hier1")
+                                messages[addr[0]].append((addr[0], DH_Data[destination]))
+                                messages[destination].append((addr[0], DH_Data[addr[0]])) #achtung hier destination "Server"
+                            else:
+                                print("hier2")
+                                messages[addr[0]].append(("Server", "Client nicht verfügbar"))
+                        else:
+                            print("hier3")
+                            messages[destination].append((addr, message)) #{IP: [(source, message),...]}
                         break
                     except:
                         time.sleep(1)
                         print("warten auf lock")
+                    
                     finally:
                         tupel_lock.release()
+                print("Messages: ", end="")
                 print(messages)
             except:
                 print("Fehler bei client_receive")
@@ -54,7 +80,7 @@ def client_send(conn, addr): # überprüfen ob Nachricht für addr vorhanden ist
         while True:
             try:
                 #{IP: [(source, message),...]}
-                print(messages)
+                #print(messages)------------------------------------------------------------------------
                 #if messages[addr] is not None or not []: #messages["192.168.85.1"] fehler weil noch nicht addr vorhanden in tupel!!!!!!!
                 if addr in messages and messages[addr]: #if liste: ist True wenn etwas in der liste ist
                     print("vor lock")
@@ -90,6 +116,10 @@ def tcp_server():
     #später benutzer und aktuelle addr in liste speichern, damit client_send benutzer weiß (dictionary mit key: addr und value: benutzer)
     global messages
     messages = {} #{IP: [(source, message),...]} (auch später Benutzer)
+    
+    #----------------------------------------------------------------------------------------------------
+    global DH_Data
+    DH_Data = {} #{IP: veränderter Public Key}
     
     while True:
         conn, addr = tcp_sock.accept()

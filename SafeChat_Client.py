@@ -2,9 +2,8 @@ import socket
 import threading
 import SafeChat_Verschlüsselung as crypt
 
-#nur eine connection wird benötigt wenn man mit einem thread jeweils nur empfangt und der andere sendet
-
-# Funktion erstellen für key_exchange und Variable mit IP und jeweiligen Schlüssel (Funktion wird immer aufgerufen, wenn man mit einem anderen Client schreibt).
+# Neue Idee: bei Verbindung zum Server wird direkt der veränderte Public Key an den Server gesendet und dieser speichert ihn ab
+# wenn ein anderer client jetzt diesem client schreiben will kann er den Wert verwenden
 
 
 class ChatProcessor:
@@ -41,35 +40,26 @@ class ChatProcessor:
             print("Kein Server gefunden – Timeout.")
             return False
 
-    def receive_data(self, sock):
+    def receive_data(self, sock): # wenn Nachricht von Server, dann DH--------------------------------------------
         while True:
             try:
                 received_data = sock.recv(1024).decode()
                 if received_data:
                     source, message = received_data.split("$", 1)
                     print(f"Message: {message}")
-                    if source in self.final_keys:
+                    if source in self.final_keys: #--------------------------------------------------------------
+                        #lock für final keys ?????????????????????????????????????????????????????????????????
                         decrypto = crypt.Str_encrypt(message, self.final_keys[source])
                         print(f"\n Nachricht von {source}: {decrypto}")
-                    else:
-                        print(f"\n per2change (receive_data): {message}")
-
-                        # sende eigene Änderung
-                        per1change = crypt.DH_calculate_change(self.private_key)
-                        print(f"per1change (receive_data): {per1change}")
-                        per1change = str(per1change)
-                        dh_data = source + "$" + per1change
-                        while True:
-                            try:
-                                self.sock_lock.acquire()
-                                self.tcp_s.sendall(dh_data.encode())
-                                break
-                            finally:
-                                self.sock_lock.release()
-
-                        per2change = int(message)
+                    elif "Server" in message: # wenn source "Server" dann final_key berechnen
+                        per2change = int(message.split("$")[1])
+                        print(per2change)
                         self.final_keys[source] = crypt.DH_calculate_change(self.private_key, per2change)
                         print(f"Final key: {self.final_keys[source]}")
+                    else: #DH falls noch kein key
+                        # muss irgendwie Anfrage senden----------------------
+                        print("Noch kein Key vorhanden")
+                        
                 else:
                     break
             except Exception as e:
@@ -77,34 +67,19 @@ class ChatProcessor:
                 break
 
     def send_data(self, destination_client, message): 
-        if destination_client not in self.final_keys: # DH falls noch kein Key vorhanden
-            #macht und sendet erste Änderung
-            per1change = crypt.DH_calculate_change(self.private_key)
-            print(f"per1change: {per1change}")
-            per1change = str(per1change)
-            dh_data = destination_client + "$" + per1change
-            while True:
-                try:
-                    self.sock_lock.acquire() #lock
-                    self.tcp_s.sendall(dh_data.encode())
+        if destination_client not in self.final_keys:
+            # DH falls noch kein Key vorhanden---------------------------------------
+            data = "Server$Get_DH_Data" + "$" + str(destination_client)
+            self.tcp_s.sendall(data.encode())
+            #warten bis DH empfangen
+            while True: # lock für final_keys??????????????????????????????????????????????????
+                if destination_client in self.final_keys: # oda warten auf lock
                     break
-                finally:
-                    self.sock_lock.release()
-
-            #empfängt geänderten Public Key von anderem Benutzer
-            received_change = self.tcp_s.recv(1024).decode() #hier kann noch ein Error auftreten, wenn hier von einem anderen Benutzer empfangen wird wie davor
-            source, per2change = received_change.split("$", 1)
-            print(f"per2change: {per2change}")
-
-            #macht zweite Änderung und schreibt Key in dictionary
-            per2change = int(per2change)
-            self.final_keys[source] = crypt.DH_calculate_change(self.private_key, per2change)
-            print(f"Final key: {self.final_keys[source]}")
 
         crypto = crypt.Str_encrypt(message, self.final_keys[destination_client])
         data = destination_client + "$" + crypto
 
-        self.sock_lock.acquire()
+        self.sock_lock.acquire()#kein lock?-----------------------------------------------
         self.tcp_s.sendall(data.encode())
         self.sock_lock.release()
 
@@ -118,6 +93,12 @@ class ChatInterface:
         # Wichtig, weil das Programm bei keinen Server nicht einfach weiterlaufen soll
         if not self.processor.find_server():
             return
+        
+        # DH_changed senden----------------------------------------------------------------------------------
+        per1change = crypt.DH_calculate_change(self.processor.private_key)
+        # senden
+        data = "Server" + "$" + str(per1change)
+        self.processor.tcp_s.sendall(data.encode())
 
         while True:
             while True:
@@ -132,6 +113,8 @@ class ChatInterface:
 
             message = input("Nachricht eingeben: ")
             self.processor.send_data(destination_client, message)
+            
+            
 
         self.processor.tcp_s.close()
 
