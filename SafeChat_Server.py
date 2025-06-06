@@ -42,7 +42,7 @@ def client_receive(conn, addr):
                 while True:
                     try:
                         tupel_lock.acquire()
-                        if destination not in messages: # und nicht "Get_DH_Data"
+                        if destination not in messages and not "Get_DH_Data" in message: # und nicht "Get_DH_Data"---------------------------------
                             messages[destination] = []
                         if addr[0] not in messages:
                             messages[addr[0]] = []
@@ -51,14 +51,15 @@ def client_receive(conn, addr):
                         if "Get_DH_Data" in message:#nicht == sondern in
                             destination = message.split("$")[1]
                             if addr[0] in DH_Data: # DH-Daten an beide Clients senden
-                                print("hier1")
-                                messages[addr[0]].append((addr[0], DH_Data[destination]))
-                                messages[destination].append((addr[0], DH_Data[addr[0]])) #achtung hier destination "Server"
+                                #print("hier1")
+                                if destination != addr[0]:
+                                    messages[addr[0]].append((destination, DH_Data[destination]))
+                                messages[destination].append((addr[0], DH_Data[addr[0]])) #Achtung hier destination "Server"
                             else:
-                                print("hier2")
+                                #print("hier2")
                                 messages[addr[0]].append(("Server", "Client nicht verfügbar"))
                         else:
-                            print("hier3")
+                            #print("hier3")
                             messages[destination].append((addr, message)) #{IP: [(source, message),...]}
                         break
                     except:
@@ -83,7 +84,7 @@ def client_send(conn, addr): # überprüfen ob Nachricht für addr vorhanden ist
                 #print(messages)------------------------------------------------------------------------
                 #if messages[addr] is not None or not []: #messages["192.168.85.1"] fehler weil noch nicht addr vorhanden in tupel!!!!!!!
                 if addr in messages and messages[addr]: #if liste: ist True wenn etwas in der liste ist
-                    print("vor lock")
+                    #print("vor lock")
                     try:
                         #lock
                         tupel_lock.acquire()
