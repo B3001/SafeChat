@@ -2,6 +2,8 @@ import socket
 import threading
 import SafeChat_Verschlüsselung as crypt
 
+import time #----------------------------------------------
+
 # Neue Idee: bei Verbindung zum Server wird direkt der veränderte Public Key an den Server gesendet und dieser speichert ihn ab
 # wenn ein anderer client jetzt diesem client schreiben will kann er den Wert verwenden
 
@@ -40,25 +42,30 @@ class ChatProcessor:
             print("Kein Server gefunden – Timeout.")
             return False
 
-    def receive_data(self, sock): # wenn Nachricht von Server, dann DH--------------------------------------------
+    def receive_data(self, sock):
         while True:
             try:
                 received_data = sock.recv(1024).decode()
                 if received_data:
                     source, message = received_data.split("$", 1)
                     print(f"Message: {message}")
-                    if source in self.final_keys: #--------------------------------------------------------------
+                    
+                    if source == "Server": # Client, an den gesendet werden soll nicht vorhanden
+                        self.final_keys["Server"] = message
+                    
+                    elif source in self.final_keys: # wenn Key vorhanden einfach decrypten
                         #lock für final keys ?????????????????????????????????????????????????????????????????
                         decrypto = crypt.Str_encrypt(message, self.final_keys[source])
                         print(f"\n Nachricht von {source}: {decrypto}")
-                    elif "Server" in message: # wenn source "Server" dann final_key berechnen
+                    elif "Server" in message: # wenn in Nachricht "Server" dann DH -> final_key berechnen
                         per2change = int(message.split("$")[1])
                         print(per2change)
+                        print(f"source: {source}")
                         self.final_keys[source] = crypt.DH_calculate_change(self.private_key, per2change)
                         print(f"Final key: {self.final_keys[source]}")
+                        print(self.final_keys)
                     else: #DH falls noch kein key
-                        # muss irgendwie Anfrage senden----------------------
-                        print("Noch kein Key vorhanden")
+                        print("Fehler: kein Key für Nachricht vorhanden")
                         
                 else:
                     break
@@ -72,16 +79,27 @@ class ChatProcessor:
             data = "Server$Get_DH_Data" + "$" + str(destination_client)
             self.tcp_s.sendall(data.encode())
             #warten bis DH empfangen
+            
+            #wenn Client nicht verfügbar self.final_keys["Server"] == destination_client--------------------------------
+            
             while True: # lock für final_keys??????????????????????????????????????????????????----------------
-                if destination_client in self.final_keys: # oda warten auf lock
+                if (destination_client in self.final_keys) or (self.final_keys["Server"] == destination_client): #oda nicht vorhanden mit einberechnen----------automatisch????
                     break
+                else:
+                    print("Testpunkt warten auf final key")
+                    print(self.final_keys)
+                    time.sleep(1)
 
-        crypto = crypt.Str_encrypt(message, self.final_keys[destination_client])
-        data = destination_client + "$" + crypto
+        if self.final_keys["Server"] != destination_client:
+            crypto = crypt.Str_encrypt(message, self.final_keys[destination_client])
+            data = destination_client + "$" + crypto
 
-        self.sock_lock.acquire()#kein lock?-----------------------------------------------
-        self.tcp_s.sendall(data.encode())
-        self.sock_lock.release()
+            self.sock_lock.acquire()#kein lock?-----------------------------------------------
+            self.tcp_s.sendall(data.encode())
+            self.sock_lock.release()
+        else:
+            self.final_keys["Server"] = ""
+            print("Client nicht verfügbar")
 
 class ChatInterface:
     def __init__(self, processor: ChatProcessor):
@@ -94,8 +112,11 @@ class ChatInterface:
         if not self.processor.find_server():
             return
         
+        self.processor.final_keys["Server"] = ""
+        
         # DH_changed senden----------------------------------------------------------------------------------
         per1change = crypt.DH_calculate_change(self.processor.private_key)
+        print(f"per1change: {per1change}")
         # senden
         data = "Server" + "$" + str(per1change)
         self.processor.tcp_s.sendall(data.encode())

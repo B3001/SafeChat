@@ -33,7 +33,7 @@ def client_receive(conn, addr):
             try:
                 #später in client_connections Benutzer dieser Verbindung hinzufügen
                 data = conn.recv(1024).decode()
-                print("Nachricht bekommen")
+                print(f"Nachricht bekommen: {data}")
                 
                 #Nachricht in messages schreiben
                 destination, message = data.split("$", 1) #split destination$message oder Server$DH
@@ -46,28 +46,36 @@ def client_receive(conn, addr):
                             messages[destination] = []
                         if addr[0] not in messages:
                             messages[addr[0]] = []
+                        
                         print("DH_Data: ", end="")
                         print(DH_Data)
                         if "Get_DH_Data" in message:#nicht == sondern in
                             destination = message.split("$")[1]
+                            
+                            if destination not in messages:
+                                messages[destination] = []
+                                
+                            print("hier1")
                             if addr[0] in DH_Data: # DH-Daten an beide Clients senden
-                                #print("hier1")
+                                print("hier2")
                                 if destination != addr[0]:
+                                    print(f"desti: {destination}, dh: {DH_Data[destination]}")
+                                    
                                     messages[addr[0]].append((destination, DH_Data[destination]))
-                                messages[destination].append((addr[0], DH_Data[addr[0]])) #Achtung hier destination "Server"
+                                messages[destination].append((addr[0], DH_Data[addr[0]])) 
+                                print("hier4")
                             else:
-                                #print("hier2")
-                                messages[addr[0]].append(("Server", "Client nicht verfügbar"))
+                                messages[addr[0]].append(("Server", destination)) #Client nicht verfügbar
                         else:
-                            #print("hier3")
-                            messages[destination].append((addr, message)) #{IP: [(source, message),...]}
-                        break
+                            messages[destination].append((addr[0], message)) #Nachricht wird weitergeleitet
+                        #break
                     except:
                         time.sleep(1)
                         print("warten auf lock")
                     
                     finally:
                         tupel_lock.release()
+                        break
                 print("Messages: ", end="")
                 print(messages)
             except:
@@ -89,15 +97,16 @@ def client_send(conn, addr): # überprüfen ob Nachricht für addr vorhanden ist
                         #lock
                         tupel_lock.acquire()
                         
-                        source = str(messages[addr][0][0][0]) #source??????????????
+                        source = str(messages[addr][0][0])#[0]) #source??????????????----------------------------------
                         #print(destination)
                         message = str(messages[addr][0][1])
                         #print(message)
                         
-                        data = source + "$" + message #destination + "$" + message
+                        data = source + "$" + message #source + "$" + message
                         conn.sendall(data.encode())
-                        messages[addr].pop(0) #aus messages löschen
+                        messages[addr].pop(0) #aus messages löschen #[0]-----------------------------------------
                         print("Nachricht weitergeleitet")
+                        print(messages)
                     finally:
                         tupel_lock.release()
                 time.sleep(1)
