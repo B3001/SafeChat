@@ -1,12 +1,9 @@
 import socket
 import threading
 import SafeChat_Verschlüsselung as crypt
+import time
 
-import time #----------------------------------------------
-
-# Neue Idee: bei Verbindung zum Server wird direkt der veränderte Public Key an den Server gesendet und dieser speichert ihn ab
-# wenn ein anderer client jetzt diesem client schreiben will kann er den Wert verwenden
-
+# lock für final_keys?
 
 class ChatProcessor:
     def __init__(self):
@@ -21,18 +18,19 @@ class ChatProcessor:
         udp_s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         udp_s.settimeout(5)
 
-        # Broadcast: "SafeChat_Client". 
+        # UDB-Broadcast: "SafeChat_Client". 
         udp_s.sendto(b"SafeChat_Client", ("<broadcast>", 5005))
 
         try:
             # Warten auf Antwort von dem Server
             data, server = udp_s.recvfrom(1024)
             if data == b"SafeChat_Server":
-                print("Server gefunden unter IP:", server[0])
+                print("Server gefunden bei IP:", server[0])
                 
                 # Hier wird die TCP-Verbindung aufgebaut
                 self.tcp_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.tcp_s.connect((server[0], 3001))
+                print(f"Eigene IP: {self.tcp_s.getsockname()[0]}")
                 
                 thread = threading.Thread(target=self.receive_data, args=(self.tcp_s,), daemon=True)
                 thread.start()
@@ -64,9 +62,8 @@ class ChatProcessor:
                         self.final_keys[source] = crypt.DH_calculate_change(self.private_key, per2change)
                         print(f"Final key: {self.final_keys[source]}")
                         print(self.final_keys)
-                    else: #DH falls noch kein key
-                        print("Fehler: kein Key für Nachricht vorhanden")
-                        
+                    else:
+                        print("Fehler: kein Key für Nachricht vorhanden")   
                 else:
                     break
             except Exception as e:
@@ -75,19 +72,16 @@ class ChatProcessor:
 
     def send_data(self, destination_client, message): 
         if destination_client not in self.final_keys:
-            # DH falls noch kein Key vorhanden---------------------------------------
+            # DH, falls noch kein Key für IP vorhanden
             data = "Server$Get_DH_Data" + "$" + str(destination_client)
             self.tcp_s.sendall(data.encode())
-            #warten bis DH empfangen
             
-            #wenn Client nicht verfügbar self.final_keys["Server"] == destination_client--------------------------------
-            
+            # warten bis Key verfügbar
             while True: # lock für final_keys??????????????????????????????????????????????????----------------
-                if (destination_client in self.final_keys) or (self.final_keys["Server"] == destination_client): #oda nicht vorhanden mit einberechnen----------automatisch????
+                if (destination_client in self.final_keys) or (self.final_keys["Server"] == destination_client):
+                    # break, wenn Key vorhanden oder "Client nicht verfügbar"
                     break
                 else:
-                    print("Testpunkt warten auf final key")
-                    print(self.final_keys)
                     time.sleep(1)
 
         if self.final_keys["Server"] != destination_client:
@@ -114,13 +108,13 @@ class ChatInterface:
         
         self.processor.final_keys["Server"] = ""
         
-        # DH_changed senden----------------------------------------------------------------------------------
+        # DH_changed senden (Server speichert diesen Wert)
         per1change = crypt.DH_calculate_change(self.processor.private_key)
         print(f"per1change: {per1change}")
-        # senden
         data = "Server" + "$" + str(per1change)
         self.processor.tcp_s.sendall(data.encode())
 
+        # Nachrichten eingeben und senden
         while True:
             while True:
                 destination_client = input("Empfänger eingeben (z.B. 127.0.0.1) oder exit zum beenden: ")
@@ -135,8 +129,6 @@ class ChatInterface:
             message = input("Nachricht eingeben: ")
             self.processor.send_data(destination_client, message)
             
-            
-
         self.processor.tcp_s.close()
 
 
