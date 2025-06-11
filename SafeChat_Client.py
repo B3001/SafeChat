@@ -46,9 +46,9 @@ class ChatProcessor:
         while True:
             try:
                 received_data = sock.recv(1024).decode()
+                print(f"Received: {received_data}")
                 if received_data:
                     source, message = received_data.split("$", 1)
-                    print(f"Message: {message}")
                     
                     if source == "Server": # Client, an den gesendet werden soll nicht vorhanden
                         self.final_keys["Server"] = message

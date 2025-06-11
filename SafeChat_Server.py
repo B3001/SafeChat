@@ -56,22 +56,22 @@ def client_receive(conn, addr):
                                 messages[destination] = []
                                 
                             print("hier1")
-                            if addr[0] in DH_Data: # DH-Daten an beide Clients senden
-                                print("hier2")
-                                if destination != addr[0]:
-                                    print(f"desti: {destination}, dh: {DH_Data[destination]}")
-                                    
-                                    messages[addr[0]].append((destination, DH_Data[destination]))
-                                messages[destination].append((addr[0], DH_Data[addr[0]])) 
+                            try:
+                                if addr[0] in DH_Data: # DH-Daten an beide Clients senden
+                                    print("hier2")
+                                    if destination != addr[0]:
+                                        print(f"desti: {destination}, dh: {DH_Data[destination]}")
+                                        messages[addr[0]].append((destination, DH_Data[destination]))
+                                    messages[destination].append((addr[0], DH_Data[addr[0]])) 
                                 print("hier4")
-                            else:
+                            except:
                                 messages[addr[0]].append(("Server", destination)) #Client nicht verfügbar
                         else:
                             messages[destination].append((addr[0], message)) #Nachricht wird weitergeleitet
                         #break
                     except:
                         time.sleep(1)
-                        print("warten auf lock")
+                        print("Fehler bei client_receive")
                     
                     finally:
                         tupel_lock.release()
