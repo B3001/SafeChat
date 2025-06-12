@@ -2,6 +2,8 @@ import socket
 import threading
 import SafeChat_Verschlüsselung as crypt
 import time
+import tkinter as tk
+from tkinter import scrolledtext
 
 # lock für final_keys?
 
@@ -11,6 +13,7 @@ class ChatProcessor:
         self.sock_lock = threading.Lock()
         self.private_key = crypt.DH_generate_private_key()
         self.tcp_s = None
+        self.gui = None 
 
     def find_server(self):
         # Socket erstellen
@@ -55,6 +58,10 @@ class ChatProcessor:
                         #lock für final keys ?????????????????????????????????????????????????????????????????
                         decrypto = crypt.Str_encrypt(message, self.final_keys[source])
                         print(f"\n Nachricht von {source}: {decrypto}")
+                        
+                        if self.gui:
+                            self.gui.root.after(0, self.gui.show_message, source, decrypto)
+                            
                     elif "Server" in message: # wenn in Nachricht "Server" dann DH -> final_key berechnen
                         per2change = int(message.split("$")[1])
                         print(per2change)
@@ -98,7 +105,60 @@ class ChatProcessor:
 class ChatInterface:
     def __init__(self, processor: ChatProcessor):
         self.processor = processor
+        self.processor.gui = self
+        self.root = tk.Tk()
+        self.root.title("SafeChat")
+        self.root.geometry("400x300")
+        self.root.resizable(False, False)
+        
+        # Erstellt ein mehrzeiliges Textfeld mit Scrollbar
+        self.chat_display = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, state='disabled', font=("Arial", 11))
+        self.chat_display.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
 
+        # Erstellt ein Textfeld für Nachrichten
+        self.message_entry = tk.Entry(self.root, font=("Arial", 12))
+        self.message_entry.grid(row=2, column=0, columnspan=2, sticky="ew", padx=(10, 5), pady=(0, 10))
+        self.message_entry.bind("<Return>", self.send_message)
+
+        # Empfängerfeld für die IP
+        self.receiver_label = tk.Label(self.root, text="Empfänger-IP:", font=("Arial", 10))
+        self.receiver_label.grid(row=1, column=0, padx=10, pady=(0, 5), sticky="w")
+        self.receiver_entry = tk.Entry(self.root, font=("Arial", 11))
+        self.receiver_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=10, pady=(0, 5))
+
+        # Erstellt ein Senden-Button
+        self.send_button = tk.Button(self.root, text="▶", bg="#58855C", fg="white", font=("Arial", 12, "bold"), command=self.send_message)
+        self.send_button.grid(row=2, column=2, sticky="ew", padx=(5, 10), pady=(0, 10))
+
+        # Fenster bleibt auf ihrer gleichen Auflösung, egal ob es sich maximiert oder sonst was
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+
+    def send_message(self, event=None):
+        destination_client = self.receiver_entry.get().strip()
+        message = self.message_entry.get().strip()
+
+        if not destination_client or not message:
+            return  # Felder dürfen nicht leer sein
+
+        if "$" in destination_client:
+            self.chat_display.config(state='normal')
+            self.chat_display.insert(tk.END, "Es darf kein $ in der Adresse sein!\n")
+            self.chat_display.config(state='disabled')
+            return
+        
+        self.chat_display.config(state='normal')
+        self.chat_display.insert(tk.END, f"Du: {message}\n")
+        self.chat_display.config(state='disabled')
+        self.processor.send_data(destination_client, message)
+        self.message_entry.delete(0, tk.END)
+        
+    def show_message(self, sender, message):
+        self.chat_display.config(state='normal')
+        self.chat_display.insert(tk.END, f"{sender}: {message}\n")
+        self.chat_display.config(state='disabled')
+        self.chat_display.yview(tk.END)
+    
     def start(self):
         print(f"private_key: {self.processor.private_key}")
 
@@ -113,26 +173,13 @@ class ChatInterface:
         print(f"per1change: {per1change}")
         data = "Server" + "$" + str(per1change)
         self.processor.tcp_s.sendall(data.encode())
-
-        # Nachrichten eingeben und senden
-        while True:
-            while True:
-                destination_client = input("Empfänger eingeben (z.B. 127.0.0.1) oder exit zum beenden: ")
-                if "$" in destination_client:
-                    print("Es darf kein $ in der Adresse sein!")
-                else:
-                    break
-
-            if destination_client == "exit":
-                break
-
-            message = input("Nachricht eingeben: ")
-            self.processor.send_data(destination_client, message)
+        # GUI laufen lassen
+        self.root.mainloop()
             
         self.processor.tcp_s.close()
-
 
 if __name__ == "__main__":
     processor = ChatProcessor()
     interface = ChatInterface(processor)
     interface.start()
+
