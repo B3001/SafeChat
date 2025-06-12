@@ -5,8 +5,6 @@ import time
 import tkinter as tk
 from tkinter import scrolledtext
 
-# lock für final_keys?
-
 class ChatProcessor:
     def __init__(self):
         self.final_keys = {}  # {IP: key} (später halt Benutzer)
@@ -55,7 +53,6 @@ class ChatProcessor:
                         self.final_keys["Server"] = message
                     
                     elif source in self.final_keys: # wenn Key vorhanden einfach decrypten
-                        #lock für final keys ?????????????????????????????????????????????????????????????????
                         decrypto = crypt.Str_encrypt(message, self.final_keys[source])
                         print(f"\n Nachricht von {source}: {decrypto}")
                         
@@ -84,7 +81,7 @@ class ChatProcessor:
             self.tcp_s.sendall(data.encode())
             
             # warten bis Key verfügbar
-            while True: # lock für final_keys??????????????????????????????????????????????????----------------
+            while True:
                 if (destination_client in self.final_keys) or (self.final_keys["Server"] == destination_client):
                     # break, wenn Key vorhanden oder "Client nicht verfügbar"
                     break
@@ -95,7 +92,7 @@ class ChatProcessor:
             crypto = crypt.Str_encrypt(message, self.final_keys[destination_client])
             data = destination_client + "$" + crypto
 
-            self.sock_lock.acquire()#kein lock?-----------------------------------------------
+            self.sock_lock.acquire()
             self.tcp_s.sendall(data.encode())
             self.sock_lock.release()
         else:
@@ -147,6 +144,12 @@ class ChatInterface:
             self.chat_display.config(state='disabled')
             return
         
+        if len(message) > (1024-15): # 15 ist max len von einer IP
+            self.chat_display.config(state='normal')
+            self.chat_display.insert(tk.END, f"Nachricht zu lang! Max. 1009 Zeichen erlaubt.\n")
+            self.chat_display.config(state='disabled')
+            return
+        
         self.chat_display.config(state='normal')
         self.chat_display.insert(tk.END, f"Du: {message}\n")
         self.chat_display.config(state='disabled')
@@ -182,4 +185,3 @@ if __name__ == "__main__":
     processor = ChatProcessor()
     interface = ChatInterface(processor)
     interface.start()
-

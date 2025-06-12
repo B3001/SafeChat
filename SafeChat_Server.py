@@ -2,8 +2,6 @@ import socket
 import threading
 import time
 
-# lock für DH_Data
-
 def IP_Handler(): # antwortet auf UDP-Anfrage
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_sock.bind(("", 5005))  # "" hört auf alle Interfaces
@@ -93,7 +91,7 @@ def client_send(conn, addr): # überprüfen ob eine Nachricht für addr vorhande
                     try:
                         tupel_lock.acquire()
                         
-                        source = str(messages[addr][0][0])#[0])----------------------------------------------
+                        source = str(messages[addr][0][0])
                         message = str(messages[addr][0][1])
                         
                         data = source + "$" + message
